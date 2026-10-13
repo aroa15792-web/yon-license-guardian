@@ -1,0 +1,31 @@
+name: Simulated tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            deploy/cloud-browser/package-lock.json
+            deploy/visual-login/package-lock.json
+      - name: Install browser adapter dependencies
+        run: npm --prefix deploy/cloud-browser ci
+      - name: Install visual login dependencies
+        run: npm --prefix deploy/visual-login ci
+      - name: Run simulated tests without production credentials
+        run: npm test

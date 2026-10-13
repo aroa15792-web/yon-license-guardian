@@ -1,0 +1,14 @@
+{
+  "name": "yon-license-cloud-browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node session.mjs",
+    "test": "node --test *.test.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.0"
+  }
+}

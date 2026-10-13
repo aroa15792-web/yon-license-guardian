@@ -1,0 +1,43 @@
+[Unit]
+Description=Procurement licence monitor and full-capacity reclaim
+After=network-online.target
+Wants=network-online.target
+Conflicts=yon-license-login.service yon-license-test.service
+Before=yon-license-login.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=exec
+DynamicUser=yes
+User=yon-license-login
+StateDirectory=yon-license-monitor
+StateDirectoryMode=0700
+RuntimeDirectory=yon-license-login
+RuntimeDirectoryMode=0700
+EnvironmentFile=/opt/yon-license-monitor/monitor.env
+LoadCredential=yon-login:/etc/yon-license-monitor/yon-login.json
+ExecStart=/bin/bash /opt/yon-license-monitor/run-monitor.sh
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateIPC=yes
+NoNewPrivileges=yes
+UMask=0077
+CPUQuota=50%
+MemoryHigh=448M
+MemoryMax=512M
+MemorySwapMax=0
+TasksMax=192
+KillMode=mixed
+TimeoutStopSec=50s
+OOMPolicy=kill
+Restart=on-failure
+RestartSec=30s
+StandardOutput=journal
+StandardError=journal
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target

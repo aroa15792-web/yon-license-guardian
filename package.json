@@ -1,0 +1,15 @@
+{
+  "name": "yon-license-guardian",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs deploy/cloud-browser/*.test.mjs deploy/status-viewer/*.test.mjs deploy/visual-login/*.test.mjs",
+    "check": "node src/check.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "version": "0.1.0",
+  "description": "Self-hosted YonSuite procurement licence occupancy monitor and full-capacity cleanup service.",
+  "license": "MIT"
+}

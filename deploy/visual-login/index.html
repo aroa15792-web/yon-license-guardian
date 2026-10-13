@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>用友 · 云端登录</title>
+  <style nonce="__CSP_NONCE__">
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#11151c; color:#edf1f7; }
+    * { box-sizing:border-box; }
+    body { margin:0; height:100dvh; display:flex; flex-direction:column; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:18px 24px; border-bottom:1px solid #303743; background:#191f28; }
+    h1 { margin:0 0 5px; font-size:18px; font-weight:650; }
+    p { margin:0; color:#adb8c8; font-size:13px; line-height:1.6; }
+    .controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+    button { border:1px solid #4e5d70; border-radius:7px; color:#f3f6fa; background:#273442; padding:9px 14px; font:inherit; font-size:13px; cursor:pointer; }
+    button:hover:not(:disabled) { background:#36495f; }
+    button:focus-visible { outline:3px solid #77baff; outline-offset:3px; }
+    button:disabled { opacity:.4; cursor:default; }
+    .remote-input-controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:10px 24px; background:#191f28; }
+    .remote-input-controls label { font-size:13px; color:#adb8c8; }
+    #remote-text { min-width:180px; flex:1; border:1px solid #4e5d70; border-radius:7px; padding:9px 12px; font:inherit; color:#edf1f7; background:#11151c; }
+    #status { font-size:13px; padding:9px 24px; color:#a7c9ee; min-height:37px; background:#141b24; }
+    #status[data-state="error"] { color:#ffbea9; }
+    #status[data-state="connected"] { color:#a1dfc1; }
+    #screen { flex:1; min-height:0; overflow:hidden; background:#080b0f; }
+    footer { padding:8px 24px; font-size:12px; color:#8796a9; background:#141b24; }
+    @media (max-width:650px) { header { align-items:flex-start; flex-direction:column; padding:14px 16px; gap:12px; } #status,footer { padding-left:16px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>用友 · 云端登录</h1><p>在下方浏览器完成登录，成功后返回 Codex。</p></div>
+    <div class="controls">
+      <button id="yonyou-login" disabled>用友登录</button>
+      <button id="license-dashboard" disabled>应用许可看板</button>
+      <button id="connect" disabled>重新连接</button>
+      <button id="disconnect" disabled>断开桌面</button>
+      <button id="fullscreen">全屏</button>
+    </div>
+  </header>
+  <div class="remote-input-controls">
+    <label for="remote-text">远程输入</label>
+    <input id="remote-text" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="先点选远端输入框，再在此输入" disabled>
+    <button id="send-remote-text" disabled>发送文本</button>
+    <button id="remote-tab" disabled>Tab</button>
+    <button id="remote-enter" disabled>Enter</button>
+  </div>
+  <div id="status" role="status" aria-live="polite">正在连接云端桌面…</div>
+  <main id="screen" aria-label="云端浏览器桌面"></main>
+  <footer>画面自动适应窗口。临时会话到时自动停止；关闭此页面不会退出用友账号。</footer>
+  <script type="application/json" id="vnc-config" nonce="__CSP_NONCE__">__VNC_CONFIG_JSON__</script>
+  <script type="module" nonce="__CSP_NONCE__">
+    import RFB from '/novnc/core/rfb.js';
+    import KeyTable from '/novnc/core/input/keysym.js';
+    import { initLogging } from '/novnc/core/util/logging.js';
+    // RFB's verbose key logging must never record remotely typed text.
+    initLogging('none');
+    const configElement = document.getElementById('vnc-config');
+    const { password } = JSON.parse(configElement.textContent);
+    configElement.remove();
+    const screen = document.getElementById('screen');
+    const status = document.getElementById('status');
+    const connectButton = document.getElementById('connect');
+    const disconnectButton = document.getElementById('disconnect');
+    const loginButton = document.getElementById('yonyou-login');
+    const dashboardButton = document.getElementById('license-dashboard');
+    const remoteText = document.getElementById('remote-text');
+    const sendTextButton = document.getElementById('send-remote-text');
+    const tabButton = document.getElementById('remote-tab');
+    const enterButton = document.getElementById('remote-enter');
+    const destinations = Object.freeze({
+      login: { label: '用友登录', url: 'https://www.yonyoucloud.com/' },
+      dashboard: { label: '应用许可看板', url: 'https://c3.yonyoucloud.com/iuap-apcom-workbench/manager/#/measuringBilling?locale=zh_CN' },
+    });
+    let rfb;
+    let connected = false;
+    let navigating = false;
+    function updateNavigationButtons() {
+      for (const control of [loginButton, dashboardButton, remoteText, sendTextButton, tabButton, enterButton]) {
+        control.disabled = !connected || navigating;
+      }
+    }
+    function update(message, state = '') { status.textContent = message; status.dataset.state = state; }
+    function connect() {
+      if (rfb) return;
+      connected = false;
+      updateNavigationButtons();
+      connectButton.disabled = true;
+      update('正在连接云端桌面…');
+      try {
+        const connection = new RFB(screen, `ws://${location.host}/vnc`, { credentials: { password } });
+        rfb = connection;
+        connection.scaleViewport = true;
+        connection.resizeSession = false;
+        connection.background = '#080b0f';
+        connection.addEventListener('connect', () => {
+          connected = true;
+          update('已连接，请在远端浏览器中登录用友。', 'connected');
+          disconnectButton.disabled = false;
+          updateNavigationButtons();
+        });
+        connection.addEventListener('credentialsrequired', () => connection.sendCredentials({ password }));
+        connection.addEventListener('securityfailure', () => {
+          connected = false;
+          remoteText.value = '';
+          updateNavigationButtons();
+          update('桌面认证未通过，请返回 Codex 检查临时会话。', 'error');
+        });
+        connection.addEventListener('disconnect', event => {
+          connected = false;
+          remoteText.value = '';
+          updateNavigationButtons();
+          rfb = undefined;
+          connectButton.disabled = false;
+          disconnectButton.disabled = true;
+          update(event.detail.clean ? '桌面连接已断开。' : '无法连接桌面，请确认本机隧道和临时会话仍在运行。', event.detail.clean ? '' : 'error');
+        });
+      } catch {
+        rfb = undefined;
+        connectButton.disabled = false;
+        update('桌面连接未建立，请返回 Codex 检查临时会话。', 'error');
+      }
+    }
+    async function navigate(destination) {
+      if (!Object.hasOwn(destinations, destination) || !rfb || !connected || navigating) return;
+      const target = destinations[destination];
+      const connection = rfb;
+      navigating = true;
+      updateNavigationButtons();
+      try {
+        try {
+          connection.sendKey(KeyTable.XK_Control_L, 'ControlLeft', true);
+          connection.sendKey(KeyTable.XK_l, 'KeyL');
+        } finally {
+          connection.sendKey(KeyTable.XK_Control_L, 'ControlLeft', false);
+        }
+        // Let the remote Chrome address bar receive focus before typing.
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (!connected || rfb !== connection) return;
+        // No physical scancode: send each exact ASCII keysym, including the
+        // uppercase letters and punctuation, independent of modifier state.
+        for (const character of target.url) connection.sendKey(character.codePointAt(0));
+        connection.sendKey(KeyTable.XK_Return, 'Enter');
+        connection.focus();
+        update(`已发送打开${target.label}的按键，请查看下方远端页面。`, 'connected');
+      } catch {
+        update('打开页面的按键未发送完成，请检查桌面连接后重试。', 'error');
+      } finally {
+        navigating = false;
+        updateNavigationButtons();
+      }
+    }
+    function sendRemoteKeys(action) {
+      if (!rfb || !connected || navigating) return;
+      const connection = rfb;
+      navigating = true;
+      updateNavigationButtons();
+      const isConnected = () => connected && rfb === connection;
+      try {
+        action(connection, isConnected);
+        if (!isConnected()) return;
+        connection.focus();
+        update('远程按键已发送，请查看远端输入框。', 'connected');
+      } catch {
+        update('远程按键未发送完成，请检查连接和远端输入框后重试。', 'error');
+      } finally {
+        navigating = false;
+        updateNavigationButtons();
+      }
+    }
+    sendTextButton.addEventListener('click', () => {
+      let text = remoteText.value;
+      remoteText.value = '';
+      try {
+        if (!text) return;
+        sendRemoteKeys((connection, isConnected) => {
+          for (const character of text) {
+            if (!isConnected()) return;
+            const codePoint = character.codePointAt(0);
+            connection.sendKey(codePoint <= 255 ? codePoint : 0x1000000 + codePoint);
+          }
+        });
+      } finally { text = ''; }
+    });
+    tabButton.addEventListener('click', () => sendRemoteKeys(connection => connection.sendKey(KeyTable.XK_Tab, 'Tab')));
+    enterButton.addEventListener('click', () => sendRemoteKeys(connection => connection.sendKey(KeyTable.XK_Return, 'Enter')));
+    loginButton.addEventListener('click', () => navigate('login'));
+    dashboardButton.addEventListener('click', () => navigate('dashboard'));
+    connectButton.addEventListener('click', connect);
+    disconnectButton.addEventListener('click', () => rfb?.disconnect());
+    document.getElementById('fullscreen').addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch { update('当前浏览器未允许全屏；仍可在窗口内操作。'); }
+    });
+    connect();
+  </script>
+</body>
+</html>

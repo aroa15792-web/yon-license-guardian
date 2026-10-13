@@ -1,0 +1,34 @@
+node_modules/
+.DS_Store
+.env*
+runtime/
+private/
+*.har
+
+# Production configuration and credentials
+monitor.env
+yon-login.json
+*credentials*.json
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+known_hosts*
+
+# Browser sessions, private sockets, operational data, and exports
+chrome-profile/
+browser-profile/
+profile/
+profiles/
+storage-state*.json
+cookies*.json
+*.sock
+journal.json
+status.json
+*.log
+exports/
+artifacts/
+coverage/
