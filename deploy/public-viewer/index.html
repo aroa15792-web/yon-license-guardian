@@ -3,65 +3,236 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>采购许可 · 服务器状态</title>
+  <meta name="color-scheme" content="light">
+  <title>采购许可监控 · 运行状态与日志</title>
   <style nonce="__CSP_NONCE__">
-    :root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#152b3e;background:#f2f5f8}*{box-sizing:border-box}body{margin:0;padding:36px 20px}main{max-width:860px;margin:auto}h1{font-size:28px;margin:0 0 10px}p{line-height:1.7;color:#536678}.card{background:white;border:1px solid #d7e0e8;border-radius:12px;padding:22px;margin:20px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}dt{font-size:14px;color:#627385;margin-bottom:8px}dd{margin:0;font-size:20px;line-height:1.5}.count{font-size:46px;font-weight:700}#notice{min-height:28px}footer{font-size:13px;color:#627385;line-height:1.7}@media(max-width:540px){.grid{grid-template-columns:1fr}body{padding:24px 14px}h1{font-size:24px}}
+    :root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#152b3e;background:#f2f5f8;font-synthesis:none;--ink:#152b3e;--muted:#536678;--line:#dce4eb;--accent:#176a98;--success:#22634b;--warning:#835707;--danger:#a23b39}
+    *{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button,a{-webkit-tap-highlight-color:transparent}button:disabled{cursor:wait}button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid #176a98;outline-offset:4px}::selection{background:#cfe5f2;color:#152b3e}*{scrollbar-width:thin;scrollbar-color:#afc2d0 #f2f5f8}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:#f2f5f8}::-webkit-scrollbar-thumb{background:#afc2d0;border:2px solid #f2f5f8;border-radius:8px}
+    main{max-width:1180px;margin:auto;padding:34px 24px 30px}h1,h2,p{margin:0}h1{font-size:27px;line-height:1.35;font-weight:650;letter-spacing:-.02em}h2{font-size:19px;line-height:1.45;font-weight:650}p{line-height:1.7}svg{display:block;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .page-header{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:26px}.page-description{font-size:14px;color:var(--muted);margin-top:7px}.header-actions{display:flex;align-items:center;gap:18px;flex-shrink:0}.connection{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}.status-dot{width:7px;height:7px;border-radius:50%;background:#8293a2;flex:none}.connection[data-tone=good] .status-dot{background:var(--success)}.connection[data-tone=warning] .status-dot{background:var(--warning)}.connection[data-tone=error] .status-dot{background:var(--danger)}
+    .refresh{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border:1px solid #c7d4df;border-radius:8px;background:white;color:var(--ink);font-size:14px;font-weight:550;transition:background .18s ease,border-color .18s ease}.refresh:hover{background:#eaf1f6;border-color:#a5bdce}.refresh:disabled{opacity:.6}.refresh svg{width:17px;height:17px}
+    .surface{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden}.overview-heading{padding:23px 26px 0;display:flex;align-items:center;justify-content:space-between;gap:16px}.scope{font-size:13px;color:var(--muted);margin-top:4px}.badge{display:inline-flex;align-items:center;gap:7px;border-radius:6px;padding:5px 9px;font-size:12px;line-height:1.4;font-weight:550;background:#eef3f7;color:var(--muted);white-space:nowrap}.badge[data-tone=good]{background:#edf6f1;color:var(--success)}.badge[data-tone=warning]{background:#fff7e7;color:var(--warning)}.badge[data-tone=error]{background:#fff1f1;color:var(--danger)}
+    .overview-body{display:grid;grid-template-columns:1fr 1fr;gap:38px;padding:28px 26px 25px}.occupancy-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px}.field-label{font-size:14px;color:var(--muted)}.occupancy-count{font-size:31px;font-weight:650;line-height:1.2;font-variant-numeric:tabular-nums;letter-spacing:-.025em;white-space:nowrap}.occupancy-count .capacity{font-size:17px;font-weight:450;color:var(--muted);letter-spacing:0;margin-left:5px}.meter{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px;margin-top:19px}.meter-segment{height:15px;border-radius:3px;background:#e7eef4;transition:background .25s ease}.meter-segment[data-occupied=true]{background:var(--accent)}.meter[data-tone=warning] .meter-segment[data-occupied=true]{background:var(--warning)}.meter[data-unknown=true] .meter-segment{background:#edf1f5}.meter-labels{display:flex;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+    .monitor-data{display:grid;grid-template-columns:1fr 1fr;column-gap:22px;row-gap:17px;margin:0;border-left:1px solid var(--line);padding-left:38px}.monitor-data dt{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:5px}.monitor-data dd{font-size:15px;font-weight:550;line-height:1.5;margin:0;word-break:break-word}.monitor-data .last-check{grid-column:1/-1}.last-check dd{font-weight:450;font-size:14px;font-variant-numeric:tabular-nums}.last-check dd span{font-size:12px;color:var(--muted);margin-left:8px;white-space:nowrap}
+    .notice{display:flex;align-items:flex-start;gap:8px;margin:0 26px;padding:15px 0 17px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);line-height:1.6;min-height:54px}.notice svg{width:16px;height:16px;margin-top:2px}.notice[data-tone=warning]{color:var(--warning)}.notice[data-tone=error]{color:var(--danger)}.verification{display:flex;align-items:center;gap:14px;border-top:1px solid var(--line);padding:14px 26px;background:#f8fafc;font-size:12px;line-height:1.65;color:var(--muted)}.verification-label{color:var(--ink);font-weight:550;white-space:nowrap}.verification-result{flex:1}.verification-time{font-variant-numeric:tabular-nums;white-space:nowrap}
+    .logs{margin-top:24px}.logs-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:23px 26px 18px}.logs-heading p{font-size:13px;color:var(--muted);margin-top:5px}.logs-refresh{font-size:12px;color:var(--muted);text-align:right;line-height:1.7;white-space:nowrap;font-variant-numeric:tabular-nums;padding-top:3px}.filter-bar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 26px;padding:0 0 15px;border-bottom:1px solid var(--line)}.filters{display:flex;flex-wrap:wrap;gap:5px}.filter{border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:13px;padding:0 12px;min-height:44px;transition:background .18s ease,color .18s ease}.filter:hover{background:#f0f4f7;color:var(--ink)}.filter[aria-pressed=true]{color:#125579;background:#e5f0f7;font-weight:600}.event-count{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}.log-notice{margin:14px 26px 0;padding:10px 12px;border-radius:7px;background:#fff7e7;color:var(--warning);font-size:13px;line-height:1.6}.log-notice[data-tone=error]{background:#fff1f1;color:var(--danger)}
+    .table-wrap{overflow:auto;max-height:492px;margin:0 26px;overscroll-behavior:contain}.event-table{border-collapse:collapse;width:100%;table-layout:fixed;text-align:left;font-size:13px}.event-table th{position:sticky;top:0;z-index:1;background:white;font-size:12px;color:var(--muted);font-weight:450;padding:14px 12px;border-bottom:1px solid var(--line)}.event-table th:first-child{width:168px;padding-left:0}.event-table th:nth-child(2){width:215px}.event-table th:last-child{padding-right:0}.event-table td{padding:14px 12px;vertical-align:top;border-bottom:1px solid #edf1f5;line-height:1.65}.event-table tr:last-child td{border-bottom:0}.event-table td:first-child{padding-left:0}.event-table td:last-child{padding-right:0}.event-time{font-variant-numeric:tabular-nums;color:var(--ink);display:block;font-size:13px}.event-date{display:block;font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);margin-top:2px}.event-name{display:flex;align-items:center;gap:7px;font-weight:550;color:var(--ink)}.event-name .status-dot{width:6px;height:6px;background:#5281a0}.event-name[data-level=warn] .status-dot{background:var(--warning)}.event-name[data-level=error] .status-dot{background:var(--danger)}.event-source{display:block;font-size:12px;color:var(--muted);margin-top:2px;padding-left:13px}.event-result{font-variant-numeric:tabular-nums;color:var(--ink);overflow-wrap:anywhere}.event-detail{display:block;font-size:12px;color:var(--muted);margin-top:2px;line-height:1.65}
+    .empty-state{text-align:center;padding:48px 20px 50px;color:var(--muted)}.empty-state strong{display:block;font-weight:550;font-size:14px;color:var(--ink);margin-bottom:7px}.empty-state p{font-size:13px;max-width:52ch;margin:auto}.log-footer{padding:15px 26px 18px;border-top:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:24px;font-size:12px;line-height:1.7;color:var(--muted)}.log-footer p{max-width:76ch}.more{border:1px solid #c7d4df;border-radius:7px;background:white;color:var(--ink);min-height:44px;padding:0 14px;font-size:13px;flex:none}.more:hover{background:#eaf1f6}.page-footer{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;color:var(--muted);font-size:12px;line-height:1.7;margin-top:19px}.page-footer span{white-space:nowrap}[hidden]{display:none!important}
+    @media(min-width:850px){.overview-heading{animation:surface-settle .45s cubic-bezier(.16,1,.3,1)}}@keyframes surface-settle{from{clip-path:inset(0 0 3px 0)}to{clip-path:inset(0 0 0 0)}}
+    @media(max-width:760px){main{padding:25px 18px 26px}.page-header{gap:16px;margin-bottom:21px;align-items:flex-start}h1{font-size:23px}.header-actions{gap:8px}.connection{font-size:12px}.refresh{padding:0 12px}.refresh .refresh-text{display:none}.overview-heading{padding:20px 20px 0}.overview-body{padding:24px 20px 21px;gap:25px}.monitor-data{padding-left:25px;column-gap:15px}.occupancy-count{font-size:27px}.notice{margin:0 20px}.verification{padding:13px 20px;flex-wrap:wrap;gap:3px 13px}.verification-result{flex-basis:calc(100% - 120px)}.verification-time{margin-left:0}.logs-heading{padding:20px 20px 15px}.filter-bar{margin:0 20px;gap:12px;align-items:flex-start;flex-direction:column}.filters{gap:3px}.filter{padding:0 10px}.event-count{padding-left:2px}.table-wrap{margin:0 20px}.event-table th:first-child{width:122px}.event-table th:nth-child(2){width:168px}.log-notice{margin-left:20px;margin-right:20px}.log-footer{padding:14px 20px 17px}.page-footer{flex-direction:column;gap:5px}.logs-refresh{font-size:12px}}
+    @media(max-width:540px){main{padding:20px 14px 24px}.page-header{flex-wrap:wrap;gap:14px;margin-bottom:18px}.page-description{font-size:12px;margin-top:5px}.header-actions{width:100%;justify-content:space-between}.refresh .refresh-text{display:inline}.overview-heading{gap:10px;padding:18px 18px 0}h2{font-size:18px}.scope{font-size:12px}.overview-body{grid-template-columns:1fr;gap:23px;padding:23px 18px 21px}.monitor-data{border-left:0;border-top:1px solid var(--line);padding:18px 0 0;grid-template-columns:1fr 1fr;gap:14px 18px}.occupancy-count{font-size:29px}.meter{gap:4px;margin-top:16px}.meter-segment{height:13px}.notice{margin:0 18px;font-size:12px;padding:13px 0 15px}.verification{padding:13px 18px;font-size:12px;display:block}.verification-label,.verification-result,.verification-time{display:block}.verification-result{margin:4px 0}.logs{margin-top:18px}.logs-heading{padding:18px 18px 13px;display:block}.logs-heading p{font-size:12px;margin-top:4px}.logs-refresh{text-align:left;padding-top:6px;display:flex;gap:8px}.filter-bar{margin:0 18px;gap:7px;padding-bottom:12px}.filters{gap:0;width:100%;justify-content:space-between}.filter{font-size:12px;padding:0 8px}.event-count{font-size:12px}.table-wrap{margin:0 18px;max-height:525px}.event-table,.event-table tbody{display:block}.event-table thead{display:none}.event-table tr{display:grid;grid-template-columns:96px minmax(0,1fr);border-bottom:1px solid #edf1f5;padding:13px 0;column-gap:14px}.event-table tr:last-child{border-bottom:0}.event-table td{display:block;padding:0;border-bottom:0}.event-table td:last-child{grid-column:2;margin-top:4px}.event-date{font-size:12px}.event-time{font-size:12px}.event-name{font-size:12px}.event-source{font-size:12px}.event-result{font-size:12px}.event-detail{font-size:12px}.log-notice{margin:12px 18px 0;font-size:12px}.empty-state{padding:34px 8px 38px}.empty-state p{font-size:12px}.log-footer{padding:13px 18px 16px;flex-direction:column;gap:12px;font-size:12px}.more{align-self:center}.page-footer{font-size:12px;margin-top:16px}.page-footer span{white-space:normal}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
   </style>
 </head>
 <body>
 <main>
-  <h1>服务器独立运行</h1>
-  <p>采购供应 · 采购管理<br>满 10/10 自动清理 · 每 60 秒检测</p>
-  <section class="card" aria-label="当前运行状态">
-    <dl class="grid">
-      <div><dt>当前占用</dt><dd class="count" id="used">— / 10</dd></div>
-      <div><dt>常驻自动清理</dt><dd id="enabled">正在读取…</dd></div>
-      <div><dt>本轮状态</dt><dd id="state">正在读取…</dd></div>
-      <div><dt>最后检查</dt><dd id="checked-at">—</dd></div>
-    </dl>
-    <p id="notice" role="status" aria-live="polite">正在读取服务器状态…</p>
+  <header class="page-header">
+    <div><h1>采购许可监控</h1><p class="page-description">服务器独立运行 · 满 10/10 自动清理 · 每 60 秒检测</p></div>
+    <div class="header-actions">
+      <span class="connection" id="connection" data-tone="neutral"><span class="status-dot" aria-hidden="true"></span><span id="connection-text">正在连接</span></span>
+      <button class="refresh" id="refresh" type="button" aria-label="刷新运行状态与日志"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1.4L20 8M4 16l2.3 2.4A7 7 0 0 0 17.9 17"/></svg><span class="refresh-text" id="refresh-text">刷新</span></button>
+    </div>
+  </header>
+  <section class="surface" aria-labelledby="overview-title">
+    <div class="overview-heading"><div><h2 id="overview-title">采购供应</h2><p class="scope">供应链云 · 采购管理</p></div><span class="badge" id="monitor-badge">正在读取</span></div>
+    <div class="overview-body">
+      <div>
+        <div class="occupancy-heading"><span class="field-label">当前占用</span><div class="occupancy-count"><span id="used">—</span><span class="capacity">/ 10 人</span></div></div>
+        <div class="meter" id="meter" role="img" aria-label="尚未取得有效占用人数" data-unknown="true"><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span><span class="meter-segment"></span></div>
+        <div class="meter-labels"><span>0 人</span><span id="capacity-note">许可总量 10 人</span></div>
+      </div>
+      <dl class="monitor-data"><div><dt>自动清理</dt><dd id="enabled">正在读取…</dd></div><div><dt>本轮状态</dt><dd id="state">正在读取…</dd></div><div class="last-check"><dt>最后检测</dt><dd><time id="checked-at">—</time><span id="check-age"></span></dd></div></dl>
+    </div>
+    <p class="notice" id="notice" role="status" aria-live="polite"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.1"/></svg><span id="notice-text">正在读取服务器状态…</span></p>
+    <aside class="verification" aria-label="最近一次历史手动测试"><span class="verification-label">历史手动测试</span><span class="verification-result" id="test-result">正在读取…</span><time class="verification-time" id="test-time"></time></aside>
   </section>
-  <section class="card" aria-label="最近一次真实测试">
-    <h2>最近一次真实测试</h2>
-    <p id="test-result">正在读取…</p><p id="test-time"></p>
+  <section class="surface logs" aria-labelledby="logs-title">
+    <div class="logs-heading"><div><h2 id="logs-title">运行日志</h2><p>记录采集到的检测、清理、暂停、异常和恢复。</p></div><div class="logs-refresh"><span>每 15 秒刷新</span><br><span id="logs-updated">等待首次读取</span></div></div>
+    <div class="filter-bar"><div class="filters" role="group" aria-label="筛选日志类型"><button class="filter" type="button" data-filter="all" aria-pressed="true">全部</button><button class="filter" type="button" data-filter="detection" aria-pressed="false">检测</button><button class="filter" type="button" data-filter="cleanup" aria-pressed="false">清理</button><button class="filter" type="button" data-filter="alerts" aria-pressed="false">异常与恢复</button><button class="filter" type="button" data-filter="test" aria-pressed="false">手动测试</button></div><span class="event-count" id="event-count">正在读取…</span></div>
+    <p class="log-notice" id="log-notice" role="status" aria-live="polite" hidden></p>
+    <div class="table-wrap" id="table-wrap" tabindex="0" aria-label="运行日志列表，可滚动查看"><table class="event-table" id="event-table" hidden><thead><tr><th scope="col">时间（北京时间）</th><th scope="col">事件</th><th scope="col">结果</th></tr></thead><tbody id="event-rows"></tbody></table><div class="empty-state" id="empty-state"><strong id="empty-title">正在读取日志</strong><p id="empty-description">服务器记录会显示在这里，无需保持页面开启。</p></div></div>
+    <div class="log-footer"><p><span id="retention-note">日志保留 24 小时，最多 2,000 条；本页显示最近 200 条。</span><br><span id="logging-start">从日志服务启用时开始记录，不补录此前的检测历史。</span><br>按状态快照采集，可能遗漏短暂的中间状态。</p><button class="more" id="show-more" type="button" hidden>显示更多记录</button></div>
   </section>
-  <footer>本页只读，每 15 秒刷新。关闭本机窗口不影响服务器检测。<br>状态过期或读取失败时不代表占用为零。</footer>
+  <footer class="page-footer"><p>本页只读。关闭窗口不影响服务器监控与日志记录。<br>人数未知、状态过期或连接失败时，显示“—”，不代表占用为零。</p><span>采购供应 · 10 人许可</span></footer>
 </main>
 <script nonce="__CSP_NONCE__">
-  const labels = {checking:'正在检测',observing:'未满，继续监控',preview:'仅预览',released:'清理完成并已核验',cooldown:'清理后冷却中',changed_retry_next_cycle:'读数变化，下一轮重查',paused:'已暂停，需核对',stopped:'已停止',unavailable:'暂时无法读取'};
+  const labels = {checking:'正在检测',observing:'未满，继续监控',preview:'仅预览',released:'清理完成并已核验',cooldown:'清理后冷却中',changed_retry_next_cycle:'读数变化，下一轮重查',paused:'已暂停，需核对',stopped:'已停止',unavailable:'监控状态不可用'};
+  const eventTypes = new Set(['monitor_status','monitor_released','monitor_paused','monitor_stopped','test_pending','test_verified','connection_unavailable','connection_restored','status_unavailable','status_available','status_stale','status_fresh']);
   const element = id => document.getElementById(id);
-  const time = value => Number.isSafeInteger(value) ? new Date(value).toLocaleString('zh-CN', {hour12:false}) : '—';
-  let loading = false;
-  async function refresh() {
-    if (loading) return;
-    loading = true;
+  const isTime = value => Number.isSafeInteger(value) && value >= 0;
+  const isCount = value => Number.isSafeInteger(value) && value >= 0 && value <= 1000;
+  const fullDate = new Intl.DateTimeFormat('zh-CN', {timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const clockDate = new Intl.DateTimeFormat('zh-CN', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const dayDate = new Intl.DateTimeFormat('zh-CN', {timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'});
+  const time = value => isTime(value) ? fullDate.format(new Date(value)) : '—';
+  function setTime(node, value, short = false) {
+    node.textContent = isTime(value) ? (short ? clockDate.format(new Date(value)) : time(value)) : '—';
+    if (isTime(value)) node.dateTime = new Date(value).toISOString();
+    else node.removeAttribute('datetime');
+  }
+  let refreshing = false;
+  let latestMonitor = null;
+  let statusConnected = false;
+  let events = [];
+  let eventsLoaded = false;
+  let activeFilter = 'all';
+  let visibleLimit = 24;
+  let eventSignature = '';
+  function displayStatus(monitor) {
+    const stale = !isTime(monitor?.checkedAt) || Date.now() - monitor.checkedAt > 180_000;
+    const paused = ['paused','stopped','unavailable'].includes(monitor?.status);
+    const current = monitor?.status === 'released' ? monitor.after : monitor?.used;
+    const known = statusConnected && !stale && !paused && isCount(current);
+    element('used').textContent = known ? String(current) : '—';
+    const meter = element('meter');
+    meter.dataset.unknown = String(!known);
+    meter.dataset.tone = known && current >= 10 ? 'warning' : 'good';
+    meter.setAttribute('aria-label', known ? `当前占用 ${current} 人，许可总量 10 人` : '尚未取得有效占用人数');
+    Array.from(meter.children).forEach((segment,index) => { segment.dataset.occupied = String(known && index < current); });
+    element('capacity-note').textContent = known ? current > 10 ? '占用已超过许可总量' : `剩余 ${10-current} 人` : '许可总量 10 人';
+    let connectionText = '监控中';
+    let tone = 'good';
+    let badge = '服务器监控中';
+    let notice = '服务器持续检测中，无需保持此窗口开启。';
+    if (!statusConnected) {
+      connectionText = '连接中断'; tone = 'error'; badge = '读取失败';
+      notice = '当前无法读取服务器状态，请稍后刷新。页面连接中断不代表监控服务已停止。';
+      element('enabled').textContent = '待确认'; element('state').textContent = '状态页连接中断';
+    } else if (monitor?.status === 'unavailable') {
+      connectionText = '状态不可用'; tone = 'error'; badge = '需要核对';
+      notice = '查看页已连接，但暂时无法取得有效监控状态；请核对服务器。';
+      element('enabled').textContent = '待确认'; element('state').textContent = labels.unavailable;
+    } else if (paused) {
+      connectionText = monitor.status === 'stopped' ? '已停止' : '已暂停'; tone = 'warning'; badge = connectionText;
+      notice = monitor.status === 'stopped' ? '监控已停止，请核对服务器服务状态。' : '自动清理已暂停，请核对服务器状态并完成所需处理。';
+      element('enabled').textContent = connectionText; element('state').textContent = labels[monitor.status];
+    } else if (stale) {
+      connectionText = '状态过期'; tone = 'warning'; badge = '等待新检测';
+      notice = '超过 3 分钟未取得新的检测状态，人数暂不显示。请等待下一轮或核对服务器。';
+      element('enabled').textContent = '待确认'; element('state').textContent = labels[monitor?.status] || labels.unavailable;
+    } else {
+      element('enabled').textContent = monitor.enabled ? '已启用' : '未启用';
+      element('state').textContent = labels[monitor.status] || labels.unavailable;
+      if (!monitor.enabled) { connectionText = '仅检测'; badge = '自动清理未启用'; tone = 'warning'; notice = '当前自动清理未启用；页面仅显示检测状态。'; }
+      else if (monitor.status === 'checking') { connectionText = '检测中'; badge = '正在检测'; notice = '正在取得本轮人数，检测完成后更新占用。'; }
+      else if (monitor.status === 'released') { badge = '已清理并核验'; notice = `本轮从 ${monitor.before} 人降至 ${monitor.after} 人，已释放 ${monitor.released} 人并完成核验。`; }
+      else if (monitor.status === 'cooldown') { badge = '清理后冷却中'; notice = '清理后处于冷却阶段，等待下一轮有效人数。'; }
+      else if (monitor.status === 'changed_retry_next_cycle') { badge = '等待重新检测'; tone = 'warning'; notice = '人数读数发生变化，将在下一轮重新检测。'; }
+    }
+    element('connection').dataset.tone = tone; element('connection-text').textContent = connectionText;
+    element('monitor-badge').dataset.tone = tone; element('monitor-badge').textContent = badge;
+    element('notice').dataset.tone = tone; element('notice-text').textContent = notice;
+    setTime(element('checked-at'), monitor?.checkedAt);
+    element('check-age').textContent = !isTime(monitor?.checkedAt) ? '' : stale ? '已过期' : `${Math.max(0,Math.floor((Date.now()-monitor.checkedAt)/1000))} 秒前`;
+  }
+  function displayTest(result) {
+    element('test-result').textContent = result?.status === 'verified' ? `${result.before} → ${result.after} 人，释放 ${result.released} 人并核验成功。` : result?.status === 'pending' ? '结果待核对，不能重复发送清理。' : result === null ? '尚无手动测试记录。' : '测试记录暂时无法读取。';
+    if (isTime(result?.checkedAt)) setTime(element('test-time'),result.checkedAt);
+    else { element('test-time').textContent = ''; element('test-time').removeAttribute('datetime'); }
+  }
+  async function refreshStatus() {
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 10_000);
     try {
       const response = await fetch('/status', {cache:'no-store',credentials:'omit',signal:abort.signal});
-      if (!response.ok) throw new Error();
+      if (!response.ok) throw new Error('status_unavailable');
       const data = await response.json();
-      const monitor = data.monitor;
-      const stale = !Number.isSafeInteger(monitor.checkedAt) || Date.now() - monitor.checkedAt > 150_000;
-      const paused = ['paused','stopped','unavailable'].includes(monitor.status);
-      const current = monitor.status === 'released' ? monitor.after : monitor.used;
-      element('used').textContent = !stale && !paused && Number.isSafeInteger(current) ? `${current} / 10` : '— / 10';
-      element('enabled').textContent = stale ? '待确认' : paused ? '已暂停或停止' : monitor.enabled ? '已启用' : '未启用';
-      element('state').textContent = labels[monitor.status] || labels.unavailable;
-      element('checked-at').textContent = time(monitor.checkedAt);
-      element('notice').textContent = stale ? '状态已过期或尚未取得，请等待检测或检查服务器。' : paused ? '自动清理已暂停，请核对服务器状态。' : '服务器持续检测中，无需保持此窗口开启。';
-      const result = data.test;
-      element('test-result').textContent = result?.status === 'verified' ? `${result.before} → ${result.after} 人；已释放 ${result.released} 人并核验成功。` : result?.status === 'pending' ? '测试结果待核对，不能重复发送清理。' : result === null ? '尚无测试记录。' : '测试记录暂时无法读取。';
-      element('test-time').textContent = result?.checkedAt === undefined ? '' : `测试时间：${time(result.checkedAt)}`;
+      if (!data || !data.monitor || !Object.hasOwn(labels,data.monitor.status) || (data.monitor.status !== 'unavailable' && (!isTime(data.monitor.checkedAt) || typeof data.monitor.enabled !== 'boolean'))) throw new Error('status_unavailable');
+      latestMonitor = data.monitor; statusConnected = true;
+      displayStatus(latestMonitor); displayTest(data.test);
     } catch {
-      element('used').textContent = '— / 10';
-      element('enabled').textContent = '待确认';
-      element('state').textContent = '状态页连接中断';
-      element('notice').textContent = '当前无法读取；本机连接中断不等于服务器已停止。';
-    } finally { clearTimeout(timeout); loading = false; }
+      statusConnected = false; displayStatus(latestMonitor); displayTest(undefined);
+    } finally { clearTimeout(timeout); }
   }
+  function eventCategory(event) {
+    if (event.source === 'test') return 'test';
+    if (event.type === 'monitor_released') return 'cleanup';
+    if (event.type === 'monitor_status') return 'detection';
+    return 'alerts';
+  }
+  function eventCopy(event) {
+    const changes = {connection_unavailable:['连接中断','查看页无法读取监控服务。','采集器停止取得新状态，已有历史记录仍保留。'],connection_restored:['连接恢复','查看页已恢复读取监控服务。','后续检测记录继续收集。'],status_unavailable:['监控状态不可用','连接正常，但监控状态暂时不可用。','请核对服务器监控服务。'],status_available:['监控状态恢复','已重新取得有效监控状态。','后续检测记录继续收集。'],status_stale:['状态过期','超过 3 分钟未取得新检测状态。','过期状态不能作为当前人数。'],status_fresh:['状态已更新','已取得新的检测状态。','以最新检测结果为准。']};
+    if (changes[event.type]) return changes[event.type];
+    if (event.type === 'monitor_released') return ['自动清理并核验',`${event.before} → ${event.after} 人`,`释放 ${event.released} 人，核验成功。`];
+    if (event.type === 'monitor_paused') return ['监控暂停','自动清理已暂停。','请核对服务器状态并完成所需处理。'];
+    if (event.type === 'monitor_stopped') return ['监控停止','监控服务已停止。','请核对服务器服务状态。'];
+    if (event.type === 'test_verified') return ['手动测试核验',`${event.before} → ${event.after} 人`,`历史手动测试：释放 ${event.released} 人并核验成功。`];
+    if (event.type === 'test_pending') return ['手动测试待核对',`测试前占用 ${event.before} 人`,'结果待核对，不能重复发送清理。'];
+    if (isCount(event.used)) return ['人数检测',`${event.used} / ${event.capacity} 人`,labels[event.status] || '已记录检测状态。'];
+    return ['检测状态',labels[event.status] || '已记录检测状态。','本轮状态未提供占用人数。'];
+  }
+  function createText(tag,text,className) {
+    const node = document.createElement(tag); node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  function renderEvents(force = false) {
+    const matching = events.filter(event => activeFilter === 'all' || eventCategory(event) === activeFilter);
+    const shown = matching.slice(0,visibleLimit);
+    element('event-count').textContent = !eventsLoaded ? '尚未取得记录' : `显示 ${shown.length} / ${matching.length} 条`;
+    const signature = `${activeFilter}:${visibleLimit}:${shown.map(event => event.id).join(',')}`;
+    element('show-more').hidden = shown.length >= matching.length;
+    element('show-more').textContent = `显示更多记录（还有 ${matching.length-shown.length} 条）`;
+    if (!force && signature === eventSignature) return;
+    eventSignature = signature;
+    const fragment = document.createDocumentFragment();
+    for (const event of shown) {
+      const row = document.createElement('tr');
+      const when = document.createElement('td');
+      const stamp = createText('time',clockDate.format(new Date(event.at)),'event-time'); stamp.dateTime = new Date(event.at).toISOString();
+      when.append(stamp,createText('span',dayDate.format(new Date(event.at)),'event-date'));
+      const what = document.createElement('td'); const [title,result,detail] = eventCopy(event);
+      const name = createText('span','','event-name'); name.dataset.level = event.level;
+      const dot = createText('span','','status-dot'); dot.setAttribute('aria-hidden','true'); name.append(dot,document.createTextNode(title));
+      what.append(name,createText('span',event.source === 'monitor' ? '常驻监控' : event.source === 'test' ? '历史手动验证' : '状态采集器','event-source'));
+      const outcome = document.createElement('td'); outcome.append(createText('span',result,'event-result'),createText('span',detail,'event-detail'));
+      row.append(when,what,outcome); fragment.append(row);
+    }
+    const scrollTop = element('table-wrap').scrollTop;
+    element('event-rows').replaceChildren(fragment);
+    element('event-table').hidden = shown.length === 0; element('empty-state').hidden = shown.length > 0;
+    if (!shown.length && eventsLoaded) {
+      element('empty-title').textContent = activeFilter === 'all' ? '暂时没有运行记录' : '这个类型暂时没有记录';
+      element('empty-description').textContent = activeFilter === 'all' ? '日志从服务启用时开始记录，下一轮检测后会显示在这里。' : '切换“全部”查看已有记录；该类型发生后会自动显示。';
+    }
+    element('table-wrap').scrollTop = scrollTop;
+  }
+  async function refreshEvents() {
+    const abort = new AbortController(); const timeout = setTimeout(() => abort.abort(),10_000);
+    try {
+      const response = await fetch('./events',{cache:'no-store',credentials:'same-origin',signal:abort.signal});
+      if (!response.ok) throw new Error('events_unavailable');
+      const data = await response.json();
+      if (!Array.isArray(data.events) || data.events.length > 200 || !data.events.every(event => event && /^[a-f0-9]{32}$/.test(event.id) && isTime(event.at) && eventTypes.has(event.type) && ['info','warn','error'].includes(event.level) && ['monitor','test','collector'].includes(event.source)) || !isTime(data.startedAt) || !(data.lastObservedAt === null || isTime(data.lastObservedAt)) || data.retention?.maxEntries !== 2000 || data.retention?.maxAgeMs !== 86400000) throw new Error('events_unavailable');
+      events = data.events; eventsLoaded = true;
+      element('log-notice').hidden = true; element('logs-updated').textContent = `已读取 ${clockDate.format(new Date())}`;
+      element('logging-start').textContent = `开始记录：${time(data.startedAt)}。不补录此前的检测历史。`;
+      element('retention-note').textContent = `日志保留 ${data.retention.maxAgeMs/3600000} 小时，最多 ${data.retention.maxEntries.toLocaleString('zh-CN')} 条；本页显示最近 200 条。`;
+      renderEvents();
+    } catch {
+      element('log-notice').hidden = false; element('log-notice').dataset.tone = 'error';
+      element('log-notice').textContent = eventsLoaded ? '日志暂时无法读取，以下为上次成功读取的历史记录。请稍后刷新。' : '暂时无法读取运行日志，请稍后刷新。日志不可用不代表没有检测或清理。';
+      if (!eventsLoaded) { element('empty-title').textContent = '日志连接暂时不可用'; element('empty-description').textContent = '运行状态仍会独立更新。连接恢复后，保留的记录会重新显示。'; element('event-count').textContent = '尚未取得记录'; }
+    } finally { clearTimeout(timeout); }
+  }
+  async function refresh() {
+    if (refreshing) return;
+    refreshing = true; element('refresh').disabled = true; element('refresh-text').textContent = '刷新中';
+    await Promise.allSettled([refreshStatus(),refreshEvents()]);
+    element('refresh').disabled = false; element('refresh-text').textContent = '刷新'; refreshing = false;
+  }
+  element('refresh').addEventListener('click',() => { void refresh(); });
+  document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click',() => {
+    activeFilter = button.dataset.filter; visibleLimit = 24;
+    document.querySelectorAll('[data-filter]').forEach(item => item.setAttribute('aria-pressed',String(item === button)));
+    element('table-wrap').scrollTop = 0; renderEvents(true);
+  }));
+  element('show-more').addEventListener('click',() => { visibleLimit = Math.min(200,visibleLimit+24); renderEvents(true); });
+  document.addEventListener('visibilitychange',() => { if (!document.hidden) { if (latestMonitor) displayStatus(latestMonitor); void refresh(); } });
+  window.addEventListener('focus',() => { if (latestMonitor) displayStatus(latestMonitor); void refresh(); });
   void refresh();
-  setInterval(() => { void refresh(); }, 15_000);
+  setInterval(() => { void refresh(); },15_000);
+  setInterval(() => { if (latestMonitor && !refreshing) displayStatus(latestMonitor); },1000);
 </script>
 </body>
 </html>

@@ -11,7 +11,7 @@ cat /var/lib/yon-license-monitor/monitor/status.json
 journalctl -u yon-license-monitor --no-pager -n 30
 ```
 
-`active` 只代表进程在运行，业务状态仍可能 paused。enabled 代表开机启动。检查 `checkedAt` 是否最近更新；只读网页会把超过 150 秒的旧状态标为不新鲜，不能把旧占用当成实时人数。
+`active` 只代表进程在运行，业务状态仍可能 paused。enabled 代表开机启动。检查 `checkedAt` 是否最近更新；本地只读网页使用 150 秒过期阈值，独立公网查看页使用 180 秒，不能把旧占用当成实时人数。
 
 | 状态 | 处理方式 |
 | --- | --- |
@@ -26,6 +26,19 @@ journalctl -u yon-license-monitor --no-pager -n 30
 | invalid_observation / journal_error / unexpected_error | 先读本项目日志，检查完整数据、文件权限或环境变化 |
 
 网页当前不展示详细暂停原因；以状态文件和本项目日志为准。未接入外部告警，维护人员需要自己的巡检方式。图像验证码、短信、MFA 等挑战不会由当前程序无人值守通过。
+
+可选的 [公网查看页](../deploy/public-viewer/README.md) 会在服务器独立采集脱敏检测记录，页面关闭也继续记录。它保留最近 24 小时、最多 2000 条，并展示最新 200 条，可筛选全部、检测、清理、异常与手动测试。旧手动测试使用原测试时间，不代表本次新增的自动清理；该查看日志也不能代替正式清理 journal 的事务核对。
+
+公网首页可打开但日志不可用时，先检查独立查看服务；只处理该服务，不重启 monitor：
+
+```bash
+systemctl show yon-license-public-viewer -p ActiveState -p SubState -p NRestarts
+journalctl -u yon-license-public-viewer --no-pager -n 20
+curl --fail http://127.0.0.1:3105/events
+stat -Lc '%a %U:%G %n' /var/lib/yon-license-public-viewer
+```
+
+记录目录由 systemd 管理，应为 0700，`events.json` 应为服务所有、0600。文件损坏或权限异常时先备份并核查原因；不删除记录、放宽权限或把真实记录上传到开源仓库。公网认证由 Nginx 管理，接口 401 表示查看身份需重新登录；日志 503 不代表采购占用为零。
 
 ## 2 暂停与恢复常驻服务
 

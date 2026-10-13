@@ -1,8 +1,13 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { open } from 'node:fs/promises';
+import { open, realpath } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { validateStatus } from './event-contract.mjs';
+import { createEventStore, EVENT_DIRECTORY } from './event-store.mjs';
+import { createEventCollector, COLLECTION_INTERVAL_MS } from './event-collector.mjs';
+
+export { validateStatus } from './event-contract.mjs';
 
 export const HOST = '127.0.0.1';
 export const PORT = 3105;
@@ -12,11 +17,6 @@ export const MAX_RESPONSE_BYTES = 65_536;
 export const UPSTREAM_TIMEOUT_MS = 5_000;
 const originalFetch = "fetch('/status', {cache:'no-store',credentials:'omit',signal:abort.signal})";
 const publicFetch = "fetch('./status', {cache:'no-store',credentials:'same-origin',signal:abort.signal})";
-const states = new Set(['checking', 'observing', 'preview', 'released', 'cooldown', 'changed_retry_next_cycle', 'paused', 'stopped']);
-const record = value => value && typeof value === 'object' && !Array.isArray(value);
-const count = value => Number.isSafeInteger(value) && value >= 0 && value <= 1000;
-const keysAre = (value, keys) => record(value) && Object.keys(value).length === keys.length &&
-  keys.every(key => Object.hasOwn(value, key));
 const occurrences = (value, needle) => value.split(needle).length - 1;
 const makeCsp = nonce => `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`;
 
@@ -63,38 +63,6 @@ function renderIndex(template, maxResponseBytes) {
   return { body, csp };
 }
 
-// The upstream already sanitizes these records. Validate the published contract
-// again so a future upstream change cannot accidentally expose private fields.
-export function validateStatus(value, now = Date.now()) {
-  const timestamp = at => Number.isSafeInteger(at) && at >= 0 && at <= now;
-  const validUnavailable = item => keysAre(item, ['status']) && item.status === 'unavailable';
-  if (!keysAre(value, ['monitor', 'test'])) return false;
-  const monitor = value.monitor;
-  if (!validUnavailable(monitor)) {
-    if (!record(monitor) || !states.has(monitor.status) || typeof monitor.enabled !== 'boolean' ||
-        !timestamp(monitor.checkedAt)) return false;
-    const basic = ['status', 'enabled', 'checkedAt'];
-    if (['observing', 'preview'].includes(monitor.status)) {
-      if (!keysAre(monitor, [...basic, 'capacity', 'used']) || monitor.capacity !== 10 || !count(monitor.used) ||
-          (monitor.status === 'observing' && monitor.used >= 10) ||
-          (monitor.status === 'preview' && (monitor.enabled || monitor.used < 10))) return false;
-    } else if (monitor.status === 'released') {
-      if (!keysAre(monitor, [...basic, 'capacity', 'before', 'after', 'released']) || !monitor.enabled ||
-          monitor.capacity !== 10 || !count(monitor.before) || monitor.before < 10 || !count(monitor.after) ||
-          monitor.after >= monitor.before || !count(monitor.released) || monitor.released < 1 ||
-          monitor.released > monitor.before) return false;
-    } else if (!keysAre(monitor, basic)) return false;
-  }
-  const result = value.test;
-  if (result === null || validUnavailable(result)) return true;
-  if (!record(result) || !['pending', 'verified'].includes(result.status) || !timestamp(result.checkedAt) ||
-      !count(result.before) || result.before < 1) return false;
-  if (result.status === 'pending') return keysAre(result, ['status', 'checkedAt', 'before']);
-  return keysAre(result, ['status', 'checkedAt', 'before', 'after', 'released']) &&
-    count(result.after) && result.after < result.before && count(result.released) &&
-    result.released >= 1 && result.released <= result.before;
-}
-
 function readUpstream({ socketPath, upstreamTimeoutMs, maxResponseBytes, signal }) {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -134,9 +102,10 @@ function readUpstream({ socketPath, upstreamTimeoutMs, maxResponseBytes, signal 
           const csp = response.headers['content-security-policy'];
           validateCsp(csp);
           const body = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
-          if (!validateStatus(JSON.parse(body))) throw new Error('upstream_unavailable');
+          const value = JSON.parse(body);
+          if (!validateStatus(value)) throw new Error('upstream_unavailable');
           if (Buffer.byteLength(body, 'utf8') > maxResponseBytes) throw new Error('upstream_unavailable');
-          finish(null, { body, contentType: expectedType, csp });
+          finish(null, { body, contentType: expectedType, csp, value });
         } catch { finish(new Error()); }
       });
     });
@@ -150,14 +119,30 @@ function readUpstream({ socketPath, upstreamTimeoutMs, maxResponseBytes, signal 
 export async function startPublicViewer({
   port = PORT, socketPath = SOCKET_PATH, upstreamTimeoutMs = UPSTREAM_TIMEOUT_MS,
   maxResponseBytes = MAX_RESPONSE_BYTES, indexFile = new URL('./index.html', import.meta.url), template,
+  eventDirectory, collectionIntervalMs = COLLECTION_INTERVAL_MS,
 } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65_535 || typeof socketPath !== 'string' ||
       !socketPath.startsWith('/') || !Number.isSafeInteger(upstreamTimeoutMs) || upstreamTimeoutMs < 1 ||
-      !Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1) throw new Error('invalid_configuration');
+      !Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1 || maxResponseBytes > MAX_RESPONSE_BYTES) throw new Error('invalid_configuration');
   // Load only this service's static page. Invalid templates prevent startup;
   // whether the monitor or its Unix socket exists never affects the homepage.
   const indexTemplate = template === undefined ? await readIndexTemplate(indexFile, maxResponseBytes) : template;
   renderIndex(indexTemplate, maxResponseBytes);
+  let eventStore;
+  let collector;
+  try {
+    // systemd may expose its managed DynamicUser StateDirectory through this
+    // fixed private-directory link. Resolve only that known service location;
+    // the store still rejects symlink files and symlink replacement directories.
+    if (eventDirectory === undefined) {
+      const resolved = await realpath(EVENT_DIRECTORY);
+      if (![EVENT_DIRECTORY, '/var/lib/private/yon-license-public-viewer'].includes(resolved)) throw new Error();
+      eventDirectory = resolved;
+    }
+    eventStore = await createEventStore({ directory: eventDirectory });
+    collector = createEventCollector({ store: eventStore, intervalMs: collectionIntervalMs,
+      readStatus: async () => (await readUpstream({ socketPath, upstreamTimeoutMs, maxResponseBytes })).value });
+  } catch { eventStore = undefined; }
   const server = http.createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -168,7 +153,7 @@ export async function startPublicViewer({
       response.writeHead(status, { 'Content-Type': contentType }); response.end(body);
     };
     if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); send(405, 'Read only'); return; }
-    if (!['/', '/status'].includes(request.url)) { send(404, 'Not found'); return; }
+    if (!['/', '/status', '/events'].includes(request.url)) { send(404, 'Not found'); return; }
     if (request.headers['transfer-encoding'] || (request.headers['content-length'] && request.headers['content-length'] !== '0')) {
       send(400, 'Request body not allowed'); return;
     }
@@ -178,6 +163,15 @@ export async function startPublicViewer({
         response.setHeader('Content-Security-Policy', page.csp);
         send(200, page.body, 'text/html; charset=utf-8');
       } catch { send(503, 'Status page unavailable'); }
+      return;
+    }
+    if (request.url === '/events') {
+      try {
+        if (!eventStore) throw new Error();
+        const body = JSON.stringify(await eventStore.list());
+        if (Buffer.byteLength(body, 'utf8') > maxResponseBytes) throw new Error();
+        send(200, body, 'application/json; charset=utf-8');
+      } catch { send(503, JSON.stringify({ status: 'events_unavailable' }), 'application/json; charset=utf-8'); }
       return;
     }
     const controller = new AbortController();
@@ -205,9 +199,12 @@ export async function startPublicViewer({
     server.once('error', reject);
     server.listen(port, HOST, resolve);
   });
+  collector?.start();
   let closing;
   return { address: server.address(), close() {
-    closing ??= new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
+    closing ??= (async () => {
+      await Promise.all([collector?.close(), new Promise(resolve => { server.close(resolve); server.closeAllConnections(); })]);
+    })();
     return closing;
   } };
 }

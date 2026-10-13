@@ -151,6 +151,8 @@ Content-Type: application/json;charset=utf-8
 
 可视化人工登录相关文件在 `deploy/visual-login/`，由 `start-visual-login.sh` / `run-visual-login.sh` 启动临时窗口。它使用 Xvfb、x11vnc 和 noVNC，仅供人工验证，30 分钟自动结束，与正式 monitor 互斥。它不是日常自动清理的依赖，也不应长期开放到公网。
 
+可选公网运行看板位于 `deploy/public-viewer/`。`gateway.mjs` 只允许读取首页、脱敏状态与运行记录；`event-contract.mjs` 定义白名单，`event-collector.mjs` 轮询原状态接口并按检查时间与内容去重，`event-store.mjs` 原子持久化到该查看服务自己的受保护目录。采集器不接触浏览器、凭据或清理接口；人工测试与自动监控是不同的事件来源。Nginx 对整个路径前缀启用 HTTPS 与登录保护，查看页仅绑定回环端口。
+
 ## 8. 辅助文件和测试
 
 | 文件或目录 | 说明 |

@@ -46,7 +46,17 @@ async function fixture(t, { handler, missing = false, ...gatewayOptions } = {}) 
     if (upstream) await new Promise(resolve => { upstream.close(resolve); upstream.closeAllConnections(); });
     await rm(directory, { recursive: true, force: true });
   });
-  return { gateway, port: gateway.address.port, socketPath };
+  return { gateway, port: gateway.address.port, socketPath, directory };
+}
+
+async function waitFor(read, accept) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    const value = await read();
+    if (accept(value)) return value;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error('synthetic-test-timeout');
 }
 
 test('only the exact status fetch changes and the CSP nonce remains unchanged', () => {
@@ -64,8 +74,11 @@ test('only the exact status fetch changes and the CSP nonce remains unchanged', 
   assert.throws(() => rewriteIndex(html, "default-src *; script-src 'unsafe-inline'"));
 });
 
-test('the independently installed static page is an unchanged copy of the private viewer', async () => {
-  assert.equal(template, await readFile(new URL('../status-viewer/index.html', import.meta.url), 'utf8'));
+test('public template retains the one exact fetch contract required by the guarded gateway rewrite', () => {
+  assert.equal((template.match(/fetch\('\/status'/g) || []).length, 1);
+  assert.equal((template.match(/credentials:'omit'/g) || []).length, 1);
+  assert.equal((template.match(/__CSP_NONCE__/g) || []).length, 2);
+  assert.doesNotMatch(template, /fetch\([^)]*(?:release|snapshot|browser-control)|<form/);
 });
 
 test('static homepage never reads the monitor and each request gets a fresh matching nonce', async t => {
@@ -82,7 +95,7 @@ test('static homepage never reads the monitor and each request gets a fresh matc
     nonces.push(actualNonce);
     assert.match(actualNonce, /^[A-Za-z0-9+/]{24}$/);
     assert.equal(page.body, rewriteIndex(template.replaceAll('__CSP_NONCE__', actualNonce), page.headers['content-security-policy']));
-    assert.doesNotMatch(page.body, /__CSP_NONCE__|<button|<form/);
+    assert.doesNotMatch(page.body, /__CSP_NONCE__|<form/);
   }
   assert.notEqual(nonces[0], nonces[1]);
   assert.equal(upstreamReads, 0);
@@ -115,7 +128,7 @@ test('a real private status viewer supplies unchanged data while homepage is ind
   assert.equal(page.status, 200);
   assert.match(page.body, /fetch\('\.\/status'/);
   assert.match(page.body, /credentials:'same-origin'/);
-  assert.doesNotMatch(page.body, /fetch\('\/status'|credentials:'omit'|<button|<form/);
+  assert.doesNotMatch(page.body, /fetch\('\/status'|credentials:'omit'|<form/);
   const actualNonce = page.headers['content-security-policy'].match(/script-src 'nonce-([^']+)'/)[1];
   assert.equal((page.body.match(new RegExp(`nonce="${actualNonce.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g')) || []).length, 2);
   assert.equal(page.headers['cache-control'], 'no-store');
@@ -177,9 +190,6 @@ test('missing upstream leaves the homepage available and the status explicitly u
   const page = await request(f.port);
   assert.equal(page.status, 200);
   assert.match(page.body, /fetch\('\.\/status'/);
-  assert.match(page.body, /if \(!response.ok\) throw new Error\(\)/);
-  assert.match(page.body, /element\('used'\)\.textContent = '— \/ 10'/);
-  assert.match(page.body, /状态页连接中断/);
   const result = await request(f.port, '/status');
   assert.equal(result.status, 503);
   assert.deepEqual(JSON.parse(result.body), { monitor: { status: 'unavailable' }, test: { status: 'unavailable' } });
@@ -265,4 +275,90 @@ test('status contract preserves allowed states and rejects unexpected or inconsi
   ]) assert.equal(validateStatus({ monitor: invalid, test: null }, now), false);
   assert.equal(validateStatus({ monitor: released, test: { ...verified, cookie: 'synthetic-private' } }, now), false);
   assert.equal(validateStatus({ monitor: released, test: { ...verified, after: 8 } }, now), false);
+});
+
+test('events are collected without visitors, persisted across gateway restart, and never fetch private endpoints or forward authentication', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'yon-public-events-'));
+  await chmod(directory, 0o700);
+  const socketPath = path.join(directory, 'status.sock');
+  const received = [];
+  const expected = status();
+  const upstream = http.createServer((incoming, response) => {
+    received.push({ method: incoming.method, path: incoming.url, headers: incoming.headers });
+    response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Security-Policy': csp });
+    response.end(JSON.stringify(expected));
+  });
+  await new Promise(resolve => upstream.listen(socketPath, resolve));
+  let gateway = await startPublicViewer({ port: 0, socketPath, eventDirectory: directory, collectionIntervalMs: 1_000_000 });
+  t.after(async () => { await gateway.close(); await new Promise(resolve => { upstream.close(resolve); upstream.closeAllConnections(); });
+    await rm(directory, { recursive: true, force: true }); });
+  const first = await waitFor(async () => JSON.parse((await request(gateway.address.port, '/events')).body), value => value.events?.length === 1);
+  assert.equal(first.events[0].at, expected.monitor.checkedAt);
+  assert.equal(first.events[0].used, 2);
+  assert.equal(first.events[0].type, 'monitor_status');
+  const before = received.length;
+  const response = await request(gateway.address.port, '/events', { headers: {
+    Authorization: 'Basic synthetic-private-auth', Cookie: 'synthetic-cookie=value', Origin: 'https://synthetic.invalid',
+  } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.equal(response.headers['content-type'], 'application/json; charset=utf-8');
+  assert.ok(Buffer.byteLength(response.body) <= 65_536);
+  assert.equal(received.length, before, '/events serves its independent persistent store');
+  assert.doesNotMatch(response.body, /synthetic-|enabled|reason|cookie|tenant|socket|error/);
+  await gateway.close();
+  gateway = await startPublicViewer({ port: 0, socketPath, eventDirectory: directory, collectionIntervalMs: 1_000_000 });
+  const restarted = await waitFor(async () => JSON.parse((await request(gateway.address.port, '/events')).body), value => value.lastObservedAt >= first.lastObservedAt);
+  assert.deepEqual(restarted.events, first.events);
+  assert.equal(restarted.startedAt, first.startedAt);
+  for (const item of received) {
+    assert.equal(item.method, 'GET'); assert.equal(item.path, '/status');
+    assert.deepEqual(item.headers, { host: UPSTREAM_HOST, connection: 'close', 'accept-encoding': 'identity', accept: 'application/json' });
+  }
+});
+
+test('events methods, paths, request bodies and socket upgrades remain read only', async t => {
+  const f = await fixture(t, { missing: true });
+  for (const method of ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'TRACE']) {
+    const result = await request(f.port, '/events', { method });
+    assert.equal(result.status, 405); assert.equal(result.headers.allow, 'GET');
+  }
+  for (const route of ['/events?limit=100', '/events/', '//events', '/Events', '/%65vents']) {
+    assert.equal((await request(f.port, route)).status, 404);
+  }
+  assert.equal((await request(f.port, '/events', { headers: { 'Content-Length': '1' }, body: 'x' })).status, 400);
+  assert.equal((await request(f.port, '/events', { headers: { Connection: 'Upgrade', Upgrade: 'websocket' } })).status, 404);
+});
+
+test('unavailable or corrupt event storage yields a generic 503 while status and homepage still work', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'yon-invalid-events-'));
+  await chmod(directory, 0o700);
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = path.join(directory, 'events.json');
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(file, '{"cookie":"synthetic-private-secret"}', { mode: 0o600 });
+  const f = await fixture(t, { eventDirectory: directory });
+  const events = await request(f.port, '/events');
+  assert.equal(events.status, 503);
+  assert.deepEqual(JSON.parse(events.body), { status: 'events_unavailable' });
+  assert.equal((await request(f.port)).status, 200);
+  const summary = await request(f.port, '/status');
+  assert.equal(summary.status, 200);
+  assert.equal(JSON.parse(summary.body).monitor.used, 2);
+  assert.equal(await readFile(file, 'utf8'), '{"cookie":"synthetic-private-secret"}');
+  assert.doesNotMatch(events.body, /synthetic-private|cookie|used|events":\[\]/);
+});
+
+test('background connection failures record one unavailable transition without pretending occupancy is zero', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'yon-offline-events-'));
+  await chmod(directory, 0o700);
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const f = await fixture(t, { missing: true, eventDirectory: directory, collectionIntervalMs: 15 });
+  const events = await waitFor(async () => JSON.parse((await request(f.port, '/events')).body), value => value.events?.length === 1);
+  await new Promise(resolve => setTimeout(resolve, 40));
+  const later = JSON.parse((await request(f.port, '/events')).body);
+  assert.deepEqual(later.events, events.events);
+  assert.equal(later.events[0].type, 'connection_unavailable');
+  assert.equal(later.lastObservedAt, null);
+  assert.doesNotMatch(JSON.stringify(later), /"used"|"capacity"|sock|ENOENT/);
 });
