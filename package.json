@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/*.test.mjs deploy/cloud-browser/*.test.mjs deploy/status-viewer/*.test.mjs deploy/visual-login/*.test.mjs",
+    "test": "node --test test/*.test.mjs deploy/cloud-browser/*.test.mjs deploy/status-viewer/*.test.mjs deploy/visual-login/*.test.mjs deploy/public-viewer/*.test.mjs",
     "check": "node src/check.mjs"
   },
   "engines": {

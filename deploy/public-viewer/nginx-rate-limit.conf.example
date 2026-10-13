@@ -1,0 +1,2 @@
+# Include at http context, for example in /etc/nginx/conf.d/.
+limit_req_zone $binary_remote_addr zone=yon_license_public:1m rate=30r/m;

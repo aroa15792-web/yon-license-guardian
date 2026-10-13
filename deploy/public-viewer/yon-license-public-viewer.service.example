@@ -1,0 +1,51 @@
+[Unit]
+Description=Read-only loopback gateway for procurement licence status
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+DynamicUser=yes
+User=yon-license-login
+WorkingDirectory=/opt/yon-license-public-viewer
+ExecStart=/usr/bin/node /opt/yon-license-public-viewer/gateway.mjs
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateIPC=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadOnlyPaths=/run/yon-license-login
+InaccessiblePaths=/proc -/run/credentials -/run/yon-license-login/browser-control.sock -/etc/yon-license-monitor -/opt/yon-license-monitor -/var/lib/yon-license-monitor -/var/lib/private/yon-license-monitor
+ProtectProc=invisible
+ProcSubset=pid
+SystemCallFilter=~kill tkill tgkill pidfd_send_signal ptrace process_vm_readv process_vm_writev pidfd_getfd
+RestrictAddressFamilies=AF_UNIX AF_INET
+IPAddressDeny=any
+IPAddressAllow=localhost
+UMask=0077
+CPUQuota=10%
+MemoryHigh=48M
+MemoryMax=64M
+MemorySwapMax=0
+TasksMax=32
+LimitNOFILE=128
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=10s
+StandardOutput=journal
+StandardError=journal
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target

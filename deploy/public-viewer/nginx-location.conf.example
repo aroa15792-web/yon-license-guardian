@@ -1,0 +1,30 @@
+# Include inside an existing HTTPS server block after validating this unused prefix.
+# Install with the separate http-level nginx-rate-limit.conf.example.
+location = /yon-license {
+    return 308 /yon-license/;
+}
+
+location ^~ /yon-license/ {
+    auth_basic "Yon License Guardian";
+    auth_basic_user_file /etc/yon-license-public-viewer/viewers.htpasswd;
+    limit_req zone=yon_license_public burst=8 nodelay;
+    limit_req_status 429;
+    client_max_body_size 1k;
+
+    proxy_pass http://127.0.0.1:3105/;
+    proxy_http_version 1.1;
+    proxy_set_header Host "127.0.0.1:3105";
+    proxy_set_header Authorization "";
+    proxy_set_header Cookie "";
+    proxy_set_header Origin "";
+    proxy_set_header Connection "";
+    proxy_connect_timeout 2s;
+    proxy_send_timeout 3s;
+    proxy_read_timeout 10s;
+    proxy_redirect off;
+    proxy_buffering off;
+    add_header Cache-Control "no-store" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
